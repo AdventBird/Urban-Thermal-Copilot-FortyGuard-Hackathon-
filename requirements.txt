@@ -1,0 +1,17 @@
+# Urban Thermal Copilot -- Feature 1 + Feature 2
+# Python 3.11+ (developed/run here on 3.14)
+#
+# Heavy geo deps (geopandas pulls shapely/pyogrio) are imported lazily so the
+# pure-logic modules still import in a bare environment.
+pandas>=2.0
+geopandas>=1.0
+shapely>=2.0
+folium>=0.16
+python-dotenv>=1.0
+requests>=2.31
+pytest>=8.0
+
+# Optional but recommended for the interactive demo:
+# streamlit
+# plotly
+# branca (pulled in automatically by folium)
