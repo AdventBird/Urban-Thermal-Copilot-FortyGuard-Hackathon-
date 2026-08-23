@@ -1,22 +1,52 @@
-# Urban Thermal Copilot — Feature 1 & Feature 2
+# Urban Thermal Copilot — V1 MVP Build (Aug 18–30 Hackathon)
 
 FortyGuard Hackathon '26 — Track 4 (Government & Environment).
-Demo city: **downtown Phoenix, AZ** (ZIP codes **85004 + 85007**). End user:
+Demo city: **downtown Phoenix, AZ** (ZIP codes **85004 + 85007**). Named client:
 Phoenix's **Office of Heat Response & Mitigation** (`FY2026 $8.9M` budget anchor).
 
-This repo currently ships the **independently testable modules** behind
-two features, built so later modules (Honest Matrix, Roadmap) import from them:
+---
 
-| Module | Responsibility |
-|---|---|
-| `utc/config.py` | Secrets + the single set of demo constants (bbox, demo date, risk threshold). |
-| `utc/bbox.py` | Downtown-Phoenix closed-ring polygon (Nominatim live source, deterministic offline fallback). |
-| `utc/contracts.py` | The agreed data shapes every feature respects (cell / recommendation / phase). |
-| `utc/fortyguard_client.py` | One shared `submit_and_poll()` for all `/v1/*` endpoints + local JSON cache. |
-| `utc/feature1_thermal.py` | Feature 1 — tcm snapshot + native exceedance/persistence flags, `tiles_to_grid`, `render_heatmap`, `get_yearly_trend`. |
-| `utc/feature2_vulnerability.py` | Feature 2 — env params, OSM POIs, Census fallback, `compute_vulnerability_score`, `compute_priority_score`. |
+## 🚦 Build Progress (for collaborators)
 
-## Setup
+Last updated: **2026-08-24**. Tests: **29 passed, 1 skipped** (`python -m pytest -q tests/`).
+
+This is a mid-build snapshot of the 9 deliverable workstreams in the V1 MVP
+brief. **3 of 9 are functional**, **2 are partially built**, and **4 are not
+started yet**. Each row below maps to the code you can find and run today.
+
+| # | V1 Deliverable | Status | What exists / what's next |
+|---|---|---|---|
+| 1 | **Spatial Thermal Audit (Heat Map)** | ✅ DONE | `feature1_thermal.py` — `get_snapshot`, `tiles_to_grid`, `render_heatmap` (Folium/viridis), 32-tile AOI. Cached to `data/cache/`. |
+| 2 | **Vulnerability Overlay** | ✅ DONE | `feature2_vulnerability.py` — OSM POIs, Census fallback, `compute_vulnerability_score`, `compute_priority_score`. |
+| 5 | **Threshold Risk Flags** | 🟡 PARTIAL | `get_risk_flags()` (FortyGuard-native exceedance + persistence) exists in Feature 1. Missing: the "12-hour forecast limit" framing + last-summer historical-count wording. |
+| 7 | **Multi-Year Trend View** | 🟡 PARTIAL | `get_yearly_trend()` exists in Feature 1 (2021–present). Missing: a rendered line-chart view / printed "X°C hotter across four summers" summary. |
+| 3 | **Honest Matrix (Recommendation Engine)** | ⏳ NOT BUILT | Only the `Recommendation` dataclass exists in `contracts.py` (with the required `con` field). Need: curated intervention table + rule-based matcher. Suggested `feature3_recommendations.py`. |
+| 4 | **Budget & Timeline Roadmap** | ⏳ NOT BUILT | Only the `Phase` dataclass exists in `contracts.py`. Need: greedy-phase fill, Phase 1/2/3 chart, "how this was prioritized" panel. Suggested `feature4_roadmap.py`. |
+| 6 | **AI-Generated Report** | ⏳ NOT BUILT | No Claude/Sonnet integration yet. Need a server-side call + markdown rendering. |
+| 8 | **Lightweight Correlation** | ⏳ NOT BUILT | No Maricopa County heat-outcome cross-reference yet. |
+| 9 | **One-Slide Business Case** | 🟡 PARTIAL | Buy/budget framing only (this README) — no standalone pitch slide yet. |
+
+> Legend: ✅ DONE · 🟡 PARTIAL (core logic in, demo-worthy UI/piece missing) · ⏳ NOT STARTED.
+
+**Quickest path to a complete MVP** — in priority order a collaborator can grab:
+core equity is 3 (Honest Matrix needs one static table + rule matcher) and
+4 (Roadmap needs a greedy phase-fill). The others are thin wrappers on existing
+Feature 1/2 outputs.
+
+---
+
+## What's currently shippable
+
+| Module | Responsibility | Status |
+|---|---|---|
+| `utc/config.py` | Secrets + the single set of demo constants (bbox, demo date, risk threshold). | done |
+| `utc/bbox.py` | Downtown-Phoenix closed-ring polygon (Nominatim live source, deterministic offline fallback). | done |
+| `utc/contracts.py` | The agreed data shapes every feature respects (cell / recommendation / phase). | done |
+| `utc/fortyguard_client.py` | One shared `submit_and_poll()` for all `/v1/*` endpoints + local JSON cache. | done |
+| `utc/feature1_thermal.py` | Feature 1 — tcm snapshot + native exceedance/persistence flags, `tiles_to_grid`, `render_heatmap`, `get_yearly_trend`. | done |
+| `utc/feature2_vulnerability.py` | Feature 2 — env params, OSM POIs, Census fallback, `compute_vulnerability_score`, `compute_priority_score`. | done |
+
+### Setup
 
 ```bash
 cp .env.example .env          # then paste your real FORTYGUARD_API_KEY in .env
@@ -90,8 +120,12 @@ Scoring formula is documented in each docstring (Honest-Matrix transparency).
 - **Census numbers are placeholders**: the hardcoded ACS figures in
   `feature2_vulnerability.py` must be replaced with real census.gov estimates
   (S0101 / S1901) before judging — clearly commented.
-- **Premium endpoints not built**: no Satellite / StreetView / Heat-Intelligence
-  dependencies until a live key confirms Premium access.
+- **Premium endpoints CONFIRMED, not yet wired**: on 2026-08-24 I verified the
+  live key has **Premium** satellite access — a minimal `/v1/satellite` job (with
+  nested `sat: {latitude, longitude}`) returned `Completed` with a 395×395 px
+  segmentation of building/road/sidewalk/skyscraper classes for downtown Phoenix.
+  No satellite code has been committed yet; it's a candidate for Feature 5+ if the
+  team wants it.
 
 ## AI-edit provenance
 
