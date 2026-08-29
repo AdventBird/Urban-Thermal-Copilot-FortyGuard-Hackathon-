@@ -1,0 +1,27 @@
+{
+  "exceedance": {
+    "map_data": {
+      "type": "FeatureCollection",
+      "features": [
+        {
+          "type": "Feature",
+          "properties": { "cell_id": "tile_0_0", "exceedance_hours": 1.5, "grid_x": 0, "grid_y": 0 },
+          "geometry": { "type": "Point", "coordinates": [-112.10646163456879, 33.448449155587494] }
+        },
+        {
+          "type": "Feature",
+          "properties": { "cell_id": "tile_2_1", "exceedance_hours": 2.2, "grid_x": 1, "grid_y": 2 },
+          "geometry": { "type": "Point", "coordinates": [-112.10438490370573, 33.450245777924494] }
+        },
+        {
+          "type": "Feature",
+          "properties": { "cell_id": "tile_0_3", "exceedance_hours": 0.0, "grid_x": 3, "grid_y": 0 },
+          "geometry": { "type": "Point", "coordinates": [-112.1033, 33.449149155587494] }
+        }
+      ]
+    }
+  },
+  "_meta": {
+    "note": "Representative MOCK values for offline demo; real exceedance comes from FortyGuard's exceedance analytic per the confirmed contract."
+  }
+}

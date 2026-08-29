@@ -1,0 +1,17 @@
+{
+  "_meta": {
+    "note": "Representative MOCK Maricopa County heat-death counts shaped like the public reporting on https://www.maricopa.gov/5105/Heat-Surveillance. Replace with the real figures before a public demo."
+  },
+  "deaths": [
+    { "year": 2019, "month": 7, "zip_code": "85004", "heat_deaths": 3 },
+    { "year": 2019, "month": 7, "zip_code": "85007", "heat_deaths": 5 },
+    { "year": 2020, "month": 7, "zip_code": "85004", "heat_deaths": 4 },
+    { "year": 2020, "month": 7, "zip_code": "85007", "heat_deaths": 7 },
+    { "year": 2021, "month": 7, "zip_code": "85004", "heat_deaths": 5 },
+    { "year": 2021, "month": 7, "zip_code": "85007", "heat_deaths": 9 },
+    { "year": 2022, "month": 7, "zip_code": "85004", "heat_deaths": 6 },
+    { "year": 2022, "month": 7, "zip_code": "85007", "heat_deaths": 11 },
+    { "year": 2023, "month": 7, "zip_code": "85004", "heat_deaths": 7 },
+    { "year": 2023, "month": 7, "zip_code": "85007", "heat_deaths": 13 }
+  ]
+}

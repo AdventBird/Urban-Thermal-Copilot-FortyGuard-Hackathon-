@@ -1,0 +1,40 @@
+{
+  "_meta": {
+    "note": "Representative MOCK satellite segmentation tile classes (% of a 100 m tile) for the downtown Phoenix box. Real values come from the confirmed PREMIUM /v1/satellite payload. The model's implausible 'ship' class for landlocked Phoenix is excluded and logged."
+  },
+  "tiles": [
+    {
+      "cell_id": "tile_0_0",
+      "latitude": 33.44845,
+      "longitude": -112.10646,
+      "segmentation": [
+        { "class": "building", "percentage": 26.0 },
+        { "class": "road, route", "percentage": 30.0 },
+        { "class": "sidewalk, pavement", "percentage": 18.0 },
+        { "class": "sky", "percentage": 26.0 }
+      ]
+    },
+    {
+      "cell_id": "tile_0_1",
+      "latitude": 33.44845,
+      "longitude": -112.10538,
+      "segmentation": [
+        { "class": "building", "percentage": 34.0 },
+        { "class": "road, route", "percentage": 24.0 },
+        { "class": "sidewalk, pavement", "percentage": 16.0 },
+        { "class": "sky", "percentage": 26.0 }
+      ]
+    },
+    {
+      "cell_id": "tile_2_1",
+      "latitude": 33.45025,
+      "longitude": -112.10646,
+      "segmentation": [
+        { "class": "building", "percentage": 20.0 },
+        { "class": "road, route", "percentage": 32.0 },
+        { "class": "sidewalk, pavement", "percentage": 22.0 },
+        { "class": "sky", "percentage": 26.0 }
+      ]
+    }
+  ]
+}

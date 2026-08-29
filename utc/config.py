@@ -51,7 +51,7 @@ def get_api_key() -> str:
 CACHE_DIR = PROJECT_ROOT / "data" / "cache"
 # Committable offline sample data, so Feature 2 can be developed before the
 # API credentials / few public endpoints are reachable.
-FIXTURE_DIR = PROJECT_ROOT / "fixtures"
+FIXTURE_DIR = PROJECT_ROOT / "data" / "fixtures"
 
 
 def cache_dir() -> Path:

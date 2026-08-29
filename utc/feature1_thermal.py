@@ -128,12 +128,17 @@ def _snapshot_date_time(date) -> dict:
     return make_date_time(date, filter_type=3)
 
 
-def get_snapshot(bbox_coords, date=None, granularity: int = config.DEMO_GRANULARITY) -> dict:
+def get_snapshot(
+    bbox_coords,
+    date=None,
+    granularity: int = config.DEMO_GRANULARITY,
+    timeout_s: float = 60.0,
+) -> dict:
     """Return the plain ``tcm`` heat snapshot (cached)."""
     ring = bbox.to_ring(bbox_coords)
     date = date or config.DEMO_DATE
     key = f"heatmap_{bbox.bbox_hash(ring)}_{date}_tcm"
-    return fetch_heatmap(ring, _snapshot_date_time(date), granularity=granularity, analytic_type="tcm", cache_key=key)
+    return fetch_heatmap(ring, _snapshot_date_time(date), granularity=granularity, analytic_type="tcm", cache_key=key, timeout_s=timeout_s)
 
 
 def get_risk_flags(
@@ -142,6 +147,7 @@ def get_risk_flags(
     threshold: float = config.RISK_THRESHOLD_C,
     direction: str = "above",
     include_persistence: bool = True,
+    timeout_s: float = 60.0,
 ) -> dict:
     """Fetch FortyGuard's own exceedance (+ optionally persistence) analytics.
 
@@ -154,12 +160,12 @@ def get_risk_flags(
     out: dict = {}
     exc_key = f"heatmap_{bbox.bbox_hash(ring)}_{date}_exceedance"
     out["exceedance"] = fetch_heatmap(
-        ring, dt, analytic_type="exceedance", threshold=threshold, direction=direction, cache_key=exc_key
+        ring, dt, analytic_type="exceedance", threshold=threshold, direction=direction, cache_key=exc_key, timeout_s=timeout_s
     )
     if include_persistence:
         per_key = f"heatmap_{bbox.bbox_hash(ring)}_{date}_persistence"
         out["persistence"] = fetch_heatmap(
-            ring, dt, analytic_type="persistence", threshold=threshold, direction=direction, cache_key=per_key
+            ring, dt, analytic_type="persistence", threshold=threshold, direction=direction, cache_key=per_key, timeout_s=timeout_s
         )
     else:
         out["persistence"] = None
@@ -266,7 +272,7 @@ def render_heatmap(grid_gdf, temperature_col="temperature_c", zoom_start=13):
     t = Transformer.from_crs("EPSG:32612", "EPSG:4326", always_xy=True)
     clon, clat = t.transform(mx, my)
 
-    m = folium.Map(location=[float(clat), float(clon)], zoom_start=zoom_start, tiles="CartoDB positron")
+    m = folium.Map(location=[float(clat), float(clon)], zoom_start=zoom_start, tiles="OpenStreetMap", control_scale=True)
     g = grid_gdf.to_crs("EPSG:4326")
     vals = list(g[temperature_col].dropna().astype(float))
     if not vals:
@@ -301,18 +307,26 @@ def _extract_mean_temp(result: dict) -> float:
 
 
 def get_yearly_trend(bbox_coords, month="07", years=(2021, 2022, 2023, 2024, 2025), granularity=config.DEMO_GRANULARITY) -> list:
-    """Return ``[(year, mean_temp_c), ...]`` via one filter_type=5 (single month) call per year.
+    """Return ``[(year, mean_temp_c), ...]`` via one filter_type=4 (month range) call per year.
 
     2021 is the earliest valid year in the confirmed data range -- do not
     request earlier. Each year's call is cached independently.
+
+    Note: the API's ``filter_type`` accepts only 1..4 (a previous draft used a
+    now-invalid ``5`` for "single month", which the live API rejects with a 422 --
+    we substitute a month-long day range, ``filter_type=4``, instead).
     """
+    import calendar
+
     ring = bbox.to_ring(bbox_coords)
     pairs = []
     for year in (int(y) for y in years):
         if year < 2021:
             raise ValueError(f"Data range starts at 2021; requested {year}.")
-        dt = make_date_time(f"{year}-{month}-01", filter_type=5)
-        key = f"heatmap_{bbox.bbox_hash(ring)}_{year}-{str(month).zfill(2)}_tcm"
+        ym = f"{year}-{str(month).zfill(2)}"
+        last = calendar.monthrange(year, int(month))[1]
+        dt = make_date_time(f"{ym}-01", filter_type=4, end_date=f"{ym}-{last}")
+        key = f"heatmap_{bbox.bbox_hash(ring)}_{ym}_tcm"
         result = fetch_heatmap(ring, dt, granularity=granularity, analytic_type="tcm", cache_key=key)
         pairs.append((year, _extract_mean_temp(result)))
     return pairs

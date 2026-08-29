@@ -1,0 +1,43 @@
+{
+  "elements": [
+    {
+      "type": "node",
+      "id": 1001,
+      "lat": 33.449,
+      "lon": -112.074,
+      "tags": {
+        "amenity": "school",
+        "name": "Doe Elementary"
+      }
+    },
+    {
+      "type": "node",
+      "id": 1002,
+      "lat": 33.446,
+      "lon": -112.08,
+      "tags": {
+        "highway": "bus_stop"
+      }
+    },
+    {
+      "type": "node",
+      "id": 1003,
+      "lat": 33.452,
+      "lon": -112.078,
+      "tags": {
+        "amenity": "hospital",
+        "name": "St. Something"
+      }
+    },
+    {
+      "type": "node",
+      "id": 1004,
+      "lat": 33.445,
+      "lon": -112.075,
+      "tags": {
+        "amenity": "social_facility",
+        "name": "Senior House"
+      }
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "_meta": {
+    "note": "Representative MOCK July means (deg C) per year for the 85004/85007 downtown Phoenix box. Real values come from one filter_type=5 (single month) FortyGuard call per year."
+  },
+  "trend": [
+    { "year": 2021, "mean_temp_c": 39.4 },
+    { "year": 2022, "mean_temp_c": 39.9 },
+    { "year": 2023, "mean_temp_c": 40.6 },
+    { "year": 2024, "mean_temp_c": 41.1 },
+    { "year": 2025, "mean_temp_c": 41.3 }
+  ]
+}

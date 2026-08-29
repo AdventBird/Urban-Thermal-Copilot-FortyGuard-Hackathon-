@@ -1,134 +1,153 @@
-# Urban Thermal Copilot — V1 MVP Build (Aug 18–30 Hackathon)
+# Urban Thermal Copilot 🌡️
 
-FortyGuard Hackathon '26 — Track 4 (Government & Environment).
-Demo city: **downtown Phoenix, AZ** (ZIP codes **85004 + 85007**). Named client:
-Phoenix's **Office of Heat Response & Mitigation** (`FY2026 $8.9M` budget anchor).
+Turn FortyGuard's hyperlocal (2‑metre) temperature data into a **budget‑constrained,
+multi‑year cooling investment plan** for a city planning office.
 
----
+Built for the **FortyGuard Hackathon '26 — Track 4 (Government & Environment)**.
+Demo city: **downtown Phoenix, AZ** (ZIP codes 85004 + 85007). Named client: the
+Phoenix **Office of Heat Response and Mitigation (OHRM)**.
 
-## 🚦 Build Progress (for collaborators)
-
-Last updated: **2026-08-24**. Tests: **29 passed, 1 skipped** (`python -m pytest -q tests/`).
-
-This is a mid-build snapshot of the 9 deliverable workstreams in the V1 MVP
-brief. **3 of 9 are functional**, **2 are partially built**, and **4 are not
-started yet**. Each row below maps to the code you can find and run today.
-
-| # | V1 Deliverable | Status | What exists / what's next |
-|---|---|---|---|
-| 1 | **Spatial Thermal Audit (Heat Map)** | ✅ DONE | `feature1_thermal.py` — `get_snapshot`, `tiles_to_grid`, `render_heatmap` (Folium/viridis), 32-tile AOI. Cached to `data/cache/`. |
-| 2 | **Vulnerability Overlay** | ✅ DONE | `feature2_vulnerability.py` — OSM POIs, Census fallback, `compute_vulnerability_score`, `compute_priority_score`. |
-| 5 | **Threshold Risk Flags** | 🟡 PARTIAL | `get_risk_flags()` (FortyGuard-native exceedance + persistence) exists in Feature 1. Missing: the "12-hour forecast limit" framing + last-summer historical-count wording. |
-| 7 | **Multi-Year Trend View** | 🟡 PARTIAL | `get_yearly_trend()` exists in Feature 1 (2021–present). Missing: a rendered line-chart view / printed "X°C hotter across four summers" summary. |
-| 3 | **Honest Matrix (Recommendation Engine)** | ⏳ NOT BUILT | Only the `Recommendation` dataclass exists in `contracts.py` (with the required `con` field). Need: curated intervention table + rule-based matcher. Suggested `feature3_recommendations.py`. |
-| 4 | **Budget & Timeline Roadmap** | ⏳ NOT BUILT | Only the `Phase` dataclass exists in `contracts.py`. Need: greedy-phase fill, Phase 1/2/3 chart, "how this was prioritized" panel. Suggested `feature4_roadmap.py`. |
-| 6 | **AI-Generated Report** | ⏳ NOT BUILT | No Claude/Sonnet integration yet. Need a server-side call + markdown rendering. |
-| 8 | **Lightweight Correlation** | ⏳ NOT BUILT | No Maricopa County heat-outcome cross-reference yet. |
-| 9 | **One-Slide Business Case** | 🟡 PARTIAL | Buy/budget framing only (this README) — no standalone pitch slide yet. |
-
-> Legend: ✅ DONE · 🟡 PARTIAL (core logic in, demo-worthy UI/piece missing) · ⏳ NOT STARTED.
-
-**Quickest path to a complete MVP** — in priority order a collaborator can grab:
-core equity is 3 (Honest Matrix needs one static table + rule matcher) and
-4 (Roadmap needs a greedy phase-fill). The others are thin wrappers on existing
-Feature 1/2 outputs.
+> **The one idea that matters:** every recommendation shows a real **cost**, a real
+> **benefit**, and a real **trade‑off ("con")** — the con is never omitted. This
+> honesty is what a public agency can defend to a council.
 
 ---
 
-## What's currently shippable
+## ✨ What it does
 
-| Module | Responsibility | Status |
-|---|---|---|
-| `utc/config.py` | Secrets + the single set of demo constants (bbox, demo date, risk threshold). | done |
-| `utc/bbox.py` | Downtown-Phoenix closed-ring polygon (Nominatim live source, deterministic offline fallback). | done |
-| `utc/contracts.py` | The agreed data shapes every feature respects (cell / recommendation / phase). | done |
-| `utc/fortyguard_client.py` | One shared `submit_and_poll()` for all `/v1/*` endpoints + local JSON cache. | done |
-| `utc/feature1_thermal.py` | Feature 1 — tcm snapshot + native exceedance/persistence flags, `tiles_to_grid`, `render_heatmap`, `get_yearly_trend`. | done |
-| `utc/feature2_vulnerability.py` | Feature 2 — env params, OSM POIs, Census fallback, `compute_vulnerability_score`, `compute_priority_score`. | done |
+A Streamlit web app with one tab per feature. Open the repo, run one command, and
+get a full cooling‑investment plan for Phoenix:
 
-### Setup
+| Tab | What you get |
+|-----|--------------|
+| **Overview** | Business‑case framing, headline heat/vulnerability metrics, and a live map. |
+| **1 · Heat Map** | A color‑blind‑safe (viridis) Folium map of the 2‑metre thermal snapshot, plus the hottest cells. |
+| **2 · Vulnerability** | Who is at risk: schools/transit/hospitals + Census demographics blended into a documented 0–1 vulnerability and priority score per cell. |
+| **3 · Honest Matrix** | Top‑priority zones matched to curated interventions, each with cost, benefit **and** a real con. |
+| **4 · Budget Roadmap** | Enter a budget + multi‑year horizon (pre‑filled from OHRM's real FY2026 $8.9M as a hypothetical slice) → a transparent greedy Phase 1/2/3 spend plan. |
+| **5 · Risk Flags** | FortyGuard‑native `exceedance` / `persistence` analytics (threshold 50 °C, direction above). |
+| **6 · AI Report** | A narrative executive summary generated server‑side by the **Gemini API**, framed for OHRM with the trade‑offs included. |
+| **7 · Multi‑year Trend** | July mean temperature 2021–2025 (one FortyGuard "single month" call per year). |
+| **8 · Heat vs Death** | Compares grid heat to Maricopa County public heat‑death reporting for the same ZIPs (Pearson r). |
+| **9 · Business Case** | The buyer (OHRM) and the real $8.9M budget line. |
+| **10 · Satellite Heat‑lens (bonus)** | Per‑tile surface heat‑lens score from satellite segmentation (the premium endpoint), feeding the Honest Matrix. |
 
+### The honest‑matrix rule (no exceptions)
+Every recommendation produced anywhere in the app — matrix, roadmap, or report —
+always includes a **`con`**. There is a test (`assert_every_con_present`) that
+fails the build if any recommendation is shipped without its trade‑off.
+
+---
+
+## 🚀 Quick start (2 minutes)
+
+**1. Clone / open the repo.**
 ```bash
-cp .env.example .env          # then paste your real FORTYGUARD_API_KEY in .env
+git clone <this-repo-url>
+cd Urban-Thermal-Copilot-FortyGuard-Hackathon-
+```
+
+**2. Create a virtual environment and install dependencies (Python 3.11+).**
+```bash
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-python -m pytest -q tests/    # runs the full suite once deps are installed
 ```
 
-Secrets live only in `.env` (gitignored — see `.gitignore`). Never hardcode keys.
+**3. (Optional) Add your API keys.**
+```bash
+cp .env.example .env
+```
+Then open `.env` and paste your keys:
+- `FORTYGUARD_API_KEY` — live 2‑metre heat data.
+- `GEMINI_API_KEY` — live AI report (Feature 6) via the Gemini API.
 
-## Shared data contract (Section 3)
+> **No keys? The app still runs fully.** Without keys it runs in **mock/cached
+> mode** using representative fixtures in `data/fixtures/`, so you can demo the
+> whole product end‑to‑end offline. The sidebar shows a banner telling you which
+> mode you're in.
 
-Every grid cell, once Features 1 + 2 have run, carries at least:
+**4. Launch the app.**
+```bash
+streamlit run app/main.py
+```
+Your browser opens at `http://localhost:8501`.
 
-```python
-{
-  "cell_id": str,
-  "geometry": <Polygon>,
-  "temperature_c": float,        # Feature 1 tcm snapshot
-  "heat_index_c": float,         # Feature 2 env_params (used for scoring)
-  "exceedance_hours": float,     # Feature 1 native risk flag
-  "persistence_hours": float,    # Feature 1 native risk flag
-  "solar_ghi": float,            # Feature 2 env_params (solar siting)
-  "vulnerability_score": float,  # 0..1
-  "priority_score": float        # 0..1 = heat_index_normalized * vulnerability_score
-}
+**5. What to click first.**
+- On the landing page, click a **preset area card** (e.g. *Downtown Core — 85004*) —
+  it loads instantly from pre-computed data.
+- Or draw a box under **Custom area** — this analyzes fresh and takes 1–3 minutes.
+- On the map, toggle **Show Vulnerability** to reveal POIs and priority zones, then
+  click any zone for its **Honest Matrix** (cost / benefit / **con**).
+- Open **Budget roadmap** and set your budget — it re-prioritizes instantly;
+  see the "Why this order?" expander for the actual scores.
+- Land on the **AI report** tab and press **Generate report**.
+
+**6. Run the test suite.**
+```bash
+python -m pytest -q
 ```
 
-`utc/contracts.validate_cell()` enforces the required fields; a missing one is a
-bug in the producing feature, not a change to make downstream.
+---
 
-## Feature 1 (Spatial Thermal Audit)
+## 🧠 How the scoring works (transparent, not a black box)
 
-```python
-from utc import bbox, feature1_thermal as f1
-ring   = bbox.build_ring()                      # Phoenix 85004 + 85007
+Per grid cell (after Features 1 + 2):
 
-result = f1.get_snapshot(ring, date=config.DEMO_DATE)   # tcm snapshot
-risk   = f1.get_risk_flags(ring, threshold=50.0)        # exceedance + persistence
-grid   = f1.tiles_to_grid(result["map_data"])           # -> GeoDataFrame (UTM 12N)
-my_map = f1.render_heatmap(grid)                        # -> folium.Map (viridis)
-trend  = f1.get_yearly_trend(ring, month="07")          # [(year, mean_temp_c), ...]
+```
+vulnerability_score = 0.5 × POI exposure + 0.5 × demographic sensitivity
+     POI exposure        = min-max over { 0.5×proximity + 0.5×density }
+                           to schools / transit / hospitals / elder care
+     demographic sensitivity = min-max over { 0.5×% elderly + 0.5×% low income }
+
+priority_score     = heat_index_normalized × vulnerability_score
 ```
 
-Every result is cached to `data/cache/` (gitignored), so the demo runs offline
-after the first successful API pull.
+The roadmap spends the budget on the highest `priority_score` cells first, at
+`$50,000 / cell`, batching them into Phase 1 / 2 / 3. This is a **heuristic** for
+planning, not an engineering guarantee — the UI says so.
 
-## Feature 2 (Vulnerability Overlay)
+---
 
-```python
-from utc import config, feature2_vulnerability as f2
-env    = f2.fetch_env_params(lat, lon, temp, date_time, fields=["heat_index_celsius", "solar_irradiance"])
-pois   = f2.load_osm_pois(config.FIXTURE_DIR / "sample_osm_pois.json")
-census = f2.fetch_census_data()                # hardcoded fallback unless CENSUS_API_KEY set
-scored = f2.compute_vulnerability_score(grid, pois, census)
-final  = f2.compute_priority_score(scored)     # sorted by priority, descending
+## 📁 Project layout
+
+```
+app/               main.py            → Streamlit entrypoint (all tabs)
+features/          feature1..feature10 → one module per feature + data_layer.py
+utc/               shared business logic (bbox, contracts, fortyguard_client,
+                   feature1_thermal, feature2_vulnerability, feature4_roadmap, ...)
+data/cache/        runtime JSON cache (gitignored, created on demand)
+data/fixtures/     offline sample data (heat map, OSM POIs, Census, trend,
+                   satellite, risk flags, Maricopa deaths)
+tests/             one test file per feature (incl. hand-calculated score asserts)
+requirements.txt, .env.example, README.md
 ```
 
-Scoring formula is documented in each docstring (Honest-Matrix transparency).
+### How the app handles "live vs offline"
+- With a real `FORTYGUARD_API_KEY`: the app calls the documented async endpoints
+  (submit → poll `/v1/status/{id}` with 3s→6s→12s backoff, credits only on
+  `Completed`) and caches every result to `data/cache/` as local JSON.
+- Without a key: it loads the fixture JSON instead, clearly flagged in the UI.
+- Every external call (FortyGuard, OSM, Census, satellite) has a JSON cache
+  fallback, so a rerun — or an offline demo during judging — still works.
 
-## Honest notes for the team
+---
 
-- **Demo date unverified**: `config.DEMO_DATE` defaults to `2025-07-14` (a
-  selected mid-July 2025 heat-event day). **Confirm the exact extreme-heat day
-  against NWS/civic reporting before the live demo** and update the constant (or
-  set `FORTYGUARD_DEMO_DATE`).
-- **Fixtures are contract-shaped, not copied**: I could not reach the FortyGuard
-  Quickstart repo's bundled cached responses from this sandbox, so `fixtures/*.json`
-  are *structurally faithful* to the documented API contract. **Swap in the
-  Quickstart's real cached responses** when you clone that repo for the most
-  realistic offline demo.
-- **Census numbers are placeholders**: the hardcoded ACS figures in
-  `feature2_vulnerability.py` must be replaced with real census.gov estimates
-  (S0101 / S1901) before judging — clearly commented.
-- **Premium endpoints CONFIRMED, not yet wired**: on 2026-08-24 I verified the
-  live key has **Premium** satellite access — a minimal `/v1/satellite` job (with
-  nested `sat: {latitude, longitude}`) returned `Completed` with a 395×395 px
-  segmentation of building/road/sidewalk/skyscraper classes for downtown Phoenix.
-  No satellite code has been committed yet; it's a candidate for Feature 5+ if the
-  team wants it.
+## ✅ Security & honesty notes
 
-## AI-edit provenance
+- Keys are read from the environment / `.env` only — never committed (see
+  `.gitignore`). `.env` is gitignored.
+- Census figures, Maricopa death counts, intervention costs and the satellite
+  classes are **representative/illustrative** and clearly labeled where they are
+  not freshly sourced public data — swap in the latest census/municipal numbers
+  before a public demo.
+- The satellite model can return an **implausible `ship` class** for landlocked
+  Phoenix; the app **excludes and logs** such classes rather than averaging them in.
 
-Files here were authored by an AI assistant (Cline) at the team's request during
-the hackathon build. Confirm exact calendar dates and swap in real cached
-responses + census figures before presentation.
+---
+
+## 🧭 Need to know
+- Data range is 2021‑01‑01 → present (+12 h forecast for heat maps only).
+- The demo area is ~< 130 km² (under FortyGuard's AOI cap).
+- Wants tests, contributions, or to wire a new city? Add a new ring in `utc/bbox.py`
+  and the grid assembly in `features/data_layer.py`; the rest follows the contract.

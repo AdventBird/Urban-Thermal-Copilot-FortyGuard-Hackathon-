@@ -1,0 +1,33 @@
+{
+  "locations": [
+    {
+      "latitude": 33.4489,
+      "longitude": -112.073,
+      "temperature": 43.2,
+      "parameters": {
+        "heat_index_celsius": [
+          46.1
+        ],
+        "solar_irradiance": [
+          850.0
+        ],
+        "wet_bulb_temperature_celsius": [
+          null
+        ]
+      },
+      "solar_irradiance": {
+        "clear_sky": {
+          "ghi": [
+            920.0
+          ],
+          "dni": [
+            880.0
+          ],
+          "dhi": [
+            120.0
+          ]
+        }
+      }
+    }
+  ]
+}

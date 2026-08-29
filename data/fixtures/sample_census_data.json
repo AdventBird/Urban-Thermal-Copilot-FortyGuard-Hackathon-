@@ -1,0 +1,22 @@
+{
+  "tracts": [
+    {
+      "tract_id": "04013021500",
+      "name": "85004 / NW downtown",
+      "elderly_pct": 12.5,
+      "low_income_pct": 28.0
+    },
+    {
+      "tract_id": "04013022200",
+      "name": "85004 / E downtown",
+      "elderly_pct": 10.9,
+      "low_income_pct": 24.0
+    },
+    {
+      "tract_id": "04013020900",
+      "name": "85007 / Capitol",
+      "elderly_pct": 18.2,
+      "low_income_pct": 34.0
+    }
+  ]
+}
