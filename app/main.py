@@ -40,6 +40,22 @@ def inject_css():
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
 
+  /* Larger, evenly-sized buttons & toggles for the map control toolbar */
+  .stButton > button {
+    min-height: 44px;
+    font-size: 15px;
+    font-weight: 600;
+    border-radius: 10px;
+  }
+  div[data-testid="stToggle"] {
+    padding: 6px 0;
+    font-size: 15px;
+  }
+  .stToggle > label {
+    font-size: 15px !important;
+    font-weight: 500;
+  }
+
   :root {
     --bg-primary: #0b0f19;
     --bg-surface: #111827;
@@ -1047,40 +1063,44 @@ def render_dashboard(grid):
                 st.session_state["hint_dismissed"] = True
                 st.rerun()
 
-    # Controls Row
-    ctrl1, ctrl2 = st.columns([1, 1], gap="small")
-    with ctrl1:
-        show_vuln = st.checkbox(
-            "⚠️ Show Vulnerability (POIs & Priority)",
-            value=False,
-            help="Displays schools, transit, and hospitals with bold high-priority cell borders.",
-        )
-    with ctrl2:
-        show_lm = st.checkbox(
-            "🏛️ Show Civic Landmarks & Districts",
-            value=False,
-            help="Pins major civic landmarks (City Hall, State Capitol, Stadiums, Parks) to orient where you are.",
-        )
-
-    # Interactive severity legend: clicking a chip highlights matching zones.
+    # Map controls: one coherent toolbar (severity filter + overlay toggles)
     with st.container():
-        leg_cols = st.columns([0.3, 1.7, 1.2], gap="small")
-        with leg_cols[0]:
-            st.caption("🎨 **Zone severity** — click to filter:")
-        for i, (level, color) in enumerate(
-            (("terrible", "#b5179e"), ("bad", "#e85d04"), ("fair", "#f2b705"), ("good", "#2a9d8f"))
-        ):
-            active = severity_filter == level
-            label = ("✔ " if active else "") + f"{level.capitalize()} ({counts.get(level, 0)})"
-            with leg_cols[1].columns(4, gap="small")[i]:
-                if st.button(label, key=f"legend_{level}",
-                             help=f"Highlight only '{level}' zones on the map",
-                             type="primary" if active else "secondary"):
+        st.caption("🎨 **Zone severity** — click a chip to highlight only those zones:")
+        pill_labels = {
+            "terrible": "🔴 Terrible", "bad": "🟠 Bad",
+            "fair": "🟡 Fair", "good": "🟢 Good",
+        }
+        # Four equal-width, stretched chips on one row (no nested columns).
+        chip_cols = st.columns(4, gap="small")
+        for col, level in zip(chip_cols, pill_labels):
+            with col:
+                active = severity_filter == level
+                label = f"{pill_labels[level]} ({counts.get(level, 0)})"
+                if st.button(
+                    label,
+                    key=f"legend_{level}",
+                    width="stretch",
+                    type="primary" if active else "secondary",
+                    help=f"Highlight only '{level}' zones on the map. Click again to clear.",
+                ):
                     st.session_state["severity_filter"] = None if active else level
                     st.rerun()
         if severity_filter:
-            with leg_cols[2]:
-                st.caption(f"🔍 Showing **{severity_filter}** zones")
+            st.caption(f"🔍 Showing **{severity_filter}** zones — click the active chip again to clear.")
+
+        tgl1, tgl2 = st.columns([1, 1], gap="small")
+        with tgl1:
+            show_vuln = st.toggle(
+                "⚠️ Vulnerability overlay",
+                value=False,
+                help="Displays schools, transit, and hospitals with bold high-priority cell borders.",
+            )
+        with tgl2:
+            show_lm = st.toggle(
+                "🏛️ Civic landmarks & districts",
+                value=False,
+                help="Pins major civic landmarks (City Hall, State Capitol, Stadiums, Parks) to orient where you are.",
+            )
 
     # Main Grid Layout: Map (Left) + Inspector (Right)
     col_map, col_insp = st.columns([0.64, 0.36], gap="medium")
