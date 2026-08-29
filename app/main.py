@@ -798,10 +798,36 @@ def render_inspector(grid, recs, cell_id):
 
     if not cell_id:
         st.markdown(
-            "<div style='color:#94a3b8; font-size:13.5px; padding:20px 0; text-align:center;'>"
-            "👆 <b>Click any 2-metre grid cell</b> on the map to inspect its microclimate metrics, "
-            "nearby landmarks, and tailored cooling plan."
-            "</div>",
+            "<div style='color:#94a3b8; font-size:13.5px; text-align:center; padding:6px 0;'>"
+            "👆 <b>Click any colored square on the map</b> to see its real data here.</div>",
+            unsafe_allow_html=True,
+        )
+        # Greyed-out example preview so users know what a filled card looks like.
+        st.markdown(
+            """
+            <div style='opacity:0.45; pointer-events:none; border:1px dashed #475569;
+                        border-radius:12px; padding:12px; margin-top:6px;'>
+              <div style='font-size:11px; letter-spacing:1px; color:#94a3b8; text-transform:uppercase;
+                          margin-bottom:6px;'>Example — what you'll get</div>
+              <span style='background:rgba(232,93,4,0.25); color:#e85d04; border:1px solid #e85d0455;
+                           border-radius:999px; padding:2px 10px; font-size:11px; font-weight:700;'>
+                           BAD RISK · Priority: High</span>
+              <div style='font-weight:700; color:#f8fafc; margin-top:8px;'>📍 Near 3rd St &amp; Van Buren St</div>
+              <div style='display:flex; gap:6px; margin-top:10px; flex-wrap:wrap;'>
+                <div style='background:rgba(30,41,59,0.8); border-radius:8px; padding:6px 10px;'>
+                  <div style='font-size:10px; color:#94a3b8;'>Ambient Temp</div>
+                  <div style='font-weight:800; color:#f8fafc;'>48.6 °C</div></div>
+                <div style='background:rgba(30,41,59,0.8); border-radius:8px; padding:6px 10px;'>
+                  <div style='font-size:10px; color:#94a3b8;'>Heat Index</div>
+                  <div style='font-weight:800; color:#f8fafc;'>51.2 °C</div></div>
+                <div style='background:rgba(30,41,59,0.8); border-radius:8px; padding:6px 10px;'>
+                  <div style='font-size:10px; color:#94a3b8;'>Exceedance</div>
+                  <div style='font-weight:800; color:#f8fafc;'>1.0 h</div></div>
+              </div>
+              <div style='margin-top:10px; font-size:12px; color:#cbd5e1;'>
+                ✅ <b>Recommended:</b> Cool pavement coating on the south-facing parking lane…</div>
+            </div>
+            """,
             unsafe_allow_html=True,
         )
         st.markdown("</div>", unsafe_allow_html=True)
@@ -809,6 +835,10 @@ def render_inspector(grid, recs, cell_id):
 
     row = grid[grid["cell_id"] == cell_id]
     if row.empty:
+        st.warning(
+            "No zone data matches that selection — click a colored square inside the "
+            "analysis area and the inspector will populate here."
+        )
         st.markdown("</div>", unsafe_allow_html=True)
         return
     r = row.iloc[0]
@@ -819,7 +849,8 @@ def render_inspector(grid, recs, cell_id):
 
     pt = _gpd.GeoSeries([centroid], crs=grid.crs).to_crs("EPSG:4326").iloc[0]
     lat_val, lon_val = float(pt.y), float(pt.x)
-    loc_label = dl.reverse_geocode(lat_val, lon_val) or f"Zone `{cell_id}`"
+    with st.spinner("Locating zone…"):
+        loc_label = dl.reverse_geocode(lat_val, lon_val) or f"Zone `{cell_id}`"
     nearby_lm = dl.get_nearest_landmark(lat_val, lon_val)
 
     level, color = f1.classify_priority(float(r["priority_score"]))
@@ -905,12 +936,42 @@ def render_inspector(grid, recs, cell_id):
             unsafe_allow_html=True,
         )
     else:
-        st.info("No recommendation mapped for this zone.")
+        if level in ("good", "fair"):
+            st.success(
+                "✅ No high-priority interventions needed here — this zone is currently "
+                "below the risk threshold. Re-check after the next heat event."
+            )
+        else:
+            st.info("No recommendation mapped for this zone yet.")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-def st_folium_map(grid, show_vulnerability=False, show_landmarks=True):
+def _nearest_cell(grid, lat: float, lng: float):
+    """Resolve a clicked (lat, lng) to the grid cell containing/nearest it.
+
+    ``st_folium``'s click events return only coordinates -- never GeoJSON
+    feature properties -- so we look the cell up spatially instead of trusting a
+    ``cell_id`` field that is never present in the click payload.
+    """
+    import geopandas as _gpd
+    from shapely.geometry import Point
+
+    if lat is None or lng is None:
+        return None
+    proj = grid.to_crs("EPSG:32612")
+    pt = _gpd.GeoSeries([Point(lng, lat)], crs="EPSG:4326").to_crs("EPSG:32612").iloc[0]
+    d = proj.geometry.centroid.distance(pt)
+    idx = int(d.idxmin())
+    # Reject clicks far outside the district (more than a cell-diagonal away).
+    diag = float(proj.geometry.iloc[idx].length / 2.0)
+    if float(d.iloc[idx]) > diag * 1.5:
+        return None
+    return str(proj["cell_id"].iloc[idx])
+
+
+def st_folium_map(grid, show_vulnerability=False, show_landmarks=True,
+                  highlight_severity=None):
     from streamlit_folium import st_folium
 
     center = grid.attrs.get("center")
@@ -924,6 +985,7 @@ def st_folium_map(grid, show_vulnerability=False, show_landmarks=True):
             pois=pois,
             show_landmarks=show_landmarks,
             center_name=center_name,
+            highlight_severity=highlight_severity,
         ),
         key="explorer_map",
         height=780,
@@ -968,9 +1030,25 @@ def render_dashboard(grid):
         st.rerun()
 
     counts = severity_counts(grid)
+    severity_filter = st.session_state.get("severity_filter")
+
+    # One-time hint banner (dismissed permanently once the user clicks a cell).
+    if not st.session_state.get("hint_dismissed"):
+        h1, h2 = st.columns([0.92, 0.08])
+        with h1:
+            st.markdown(
+                "<div class='utc-note-box'>👆 <b>Click any colored square on the map</b> to see that zone's "
+                "heat data and cooling recommendations. Click a severity chip above the map to highlight only "
+                "those zones.</div>",
+                unsafe_allow_html=True,
+            )
+        with h2:
+            if st.button("✕", key="dismiss_hint", help="Dismiss this hint"):
+                st.session_state["hint_dismissed"] = True
+                st.rerun()
 
     # Controls Row
-    ctrl1, ctrl2, ctrl3 = st.columns([2.5, 2.5, 5], gap="small")
+    ctrl1, ctrl2 = st.columns([1, 1], gap="small")
     with ctrl1:
         show_vuln = st.checkbox(
             "⚠️ Show Vulnerability (POIs & Priority)",
@@ -980,28 +1058,46 @@ def render_dashboard(grid):
     with ctrl2:
         show_lm = st.checkbox(
             "🏛️ Show Civic Landmarks & Districts",
-            value=True,
+            value=False,
             help="Pins major civic landmarks (City Hall, State Capitol, Stadiums, Parks) to orient where you are.",
         )
-    with ctrl3:
-        legend_html = "<div style='display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:4px; padding-top:4px;'>" + "".join(
-            f"<span class='utc-legend-chip'>"
-            f"<span style='width:10px;height:10px;border-radius:3px;background:{color}'></span>"
-            f"{level.capitalize()} ({counts.get(level,0)})</span>"
-            for level, color in (("terrible", "#b5179e"), ("bad", "#e85d04"), ("fair", "#f2b705"), ("good", "#2a9d8f"))
-        ) + "</div>"
-        st.markdown(legend_html, unsafe_allow_html=True)
+
+    # Interactive severity legend: clicking a chip highlights matching zones.
+    with st.container():
+        leg_cols = st.columns([0.3, 1.7, 1.2], gap="small")
+        with leg_cols[0]:
+            st.caption("🎨 **Zone severity** — click to filter:")
+        for i, (level, color) in enumerate(
+            (("terrible", "#b5179e"), ("bad", "#e85d04"), ("fair", "#f2b705"), ("good", "#2a9d8f"))
+        ):
+            active = severity_filter == level
+            label = ("✔ " if active else "") + f"{level.capitalize()} ({counts.get(level, 0)})"
+            with leg_cols[1].columns(4, gap="small")[i]:
+                if st.button(label, key=f"legend_{level}",
+                             help=f"Highlight only '{level}' zones on the map",
+                             type="primary" if active else "secondary"):
+                    st.session_state["severity_filter"] = None if active else level
+                    st.rerun()
+        if severity_filter:
+            with leg_cols[2]:
+                st.caption(f"🔍 Showing **{severity_filter}** zones")
 
     # Main Grid Layout: Map (Left) + Inspector (Right)
     col_map, col_insp = st.columns([0.64, 0.36], gap="medium")
     with col_map:
-        map_data = st_folium_map(grid, show_vulnerability=show_vuln, show_landmarks=show_lm)
+        map_data = st_folium_map(grid, show_vulnerability=show_vuln,
+                                 show_landmarks=show_lm,
+                                 highlight_severity=severity_filter)
         st.caption("🗺️ **Tip:** Click any square cell to inspect it. Use the layer switcher (top right) to toggle Satellite Imagery or POIs. Click 🎯 (top left) to locate your GPS.")
 
         clicked = map_data.get("last_object_clicked") or {}
-        cell_id = clicked.get("cell_id")
+        clicked = clicked or (map_data.get("last_clicked") or {})
+        cell_id = _nearest_cell(grid, clicked.get("lat"), clicked.get("lng"))
         if cell_id:
             st.session_state["selected"] = cell_id
+            st.session_state["hint_dismissed"] = True
+        elif clicked.get("lat") is not None:
+            st.toast("That click was outside the analysis area — click a colored square.", icon="⚠️")
 
     with col_insp:
         render_inspector(grid, st.session_state.get("recs"), st.session_state.get("selected"))
@@ -1010,8 +1106,18 @@ def render_dashboard(grid):
 
 
 def render_insights(grid, counts):
-    st.markdown("---")
-    st.markdown("<h3 style='color:#f8fafc; margin-top:10px;'>📊 City Heat Analytics & Planning Toolkit</h3>", unsafe_allow_html=True)
+    # Clear visual break: the analytics toolkit reads as a distinct second
+    # section, not a continuation of the map scroll.
+    st.markdown(
+        "<div style='margin-top:30px;'>"
+        "<hr style='border:none; border-top:1px solid rgba(139,92,246,0.4);'>"
+        "<h2 style='margin:16px 0 2px; font-size:22px; color:#f8fafc;'>"
+        "🧰 City Heat Analytics &amp; Planning Toolkit</h2>"
+        "<div style='color:#94a3b8; font-size:13px; margin-bottom:14px;'>"
+        "Multi-year trends, budget planning, an executive briefing, and native risk "
+        "analytics — all computed for the area selected above.</div></div>",
+        unsafe_allow_html=True,
+    )
     t1, t2, t3, t4 = st.tabs(["📈 Multi‑Year Trend (2021–2025)", "💰 Budget Roadmap & Allocation", "📑 Executive Memo", "🛡️ Risk Flags & Mortality"])
 
     with t1:

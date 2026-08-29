@@ -244,22 +244,116 @@ def geocode(place) -> dict | None:
         return None
 
 
-def _mock_grid_centered(lat, lon, name):
-    """Translate the offline Phoenix grid to sit on the searched (lat, lon).
+def _fixture_temp_pool() -> list[float]:
+    """Temperature values from the fixture heatmap (the representative range)."""
+    heat = config.read_fixture("sample_heatmap_response.json")
+    fc = heat.get("map_data") if isinstance(heat, dict) and "map_data" in heat else heat
+    pool = []
+    for f in fc.get("features", []):
+        props = f.get("properties") or {}
+        for key in ("avg_temp", "Avg_temp", "temperature_c", "mean_temp", "temp_c"):
+            if key in props:
+                pool.append(float(props[key]))
+                break
+    if not pool:  # last-resort plausible Phoenix summer afternoon range
+        pool = [44.0, 45.5, 47.0, 48.5, 50.0]
+    return sorted(pool)
 
-    Keeps every contract field so the whole pipeline (vulnerability, priority,
-    matrix, roadmap) runs identically regardless of the searched city. This is a
-    visual/functional demonstration in mock mode, not real 2-metre data for the
-    target city.
+
+def _synthetic_grid(lat: float, lon: float, name: str, seed_key: str = "",
+                    side: int = 14, cell_m: float = 100.0):
+    """Build a deterministic, district-sized offline grid centered on (lat, lon).
+
+    The bundled fixture spans only ~400 m (12 cells), which rendered as a tiny
+    square blob when translated to a preset center. This instead synthesizes a
+    ``side`` x ``side`` grid (default 14 x 14 = 196 cells at 100 m, ~1.4 km on a
+    side) whose temperatures are drawn from the fixture's distribution with a
+    coherent spatial pattern (hot core, cooler rim) plus seeded per-cell noise,
+    so presets look like real neighborhoods and every downstream feature
+    (vulnerability, priority, Honest Matrix, roadmap) runs on real geometry.
     """
-    grid = _mock_grid()
+    import hashlib
+    import numpy as np
+    import geopandas as gpd
+    from shapely.geometry import box
+
+    rng_seed = int(hashlib.md5(f"{seed_key}|{lat:.5f}|{lon:.5f}".encode()).hexdigest()[:8], 16)
+    rng = np.random.default_rng(rng_seed)
+
+    pool = np.asarray(_fixture_temp_pool(), dtype=float)
+    tmin, tmax = float(pool.min()), float(pool.max())
+    base = float(np.median(pool))
+
     target = _to_utm(lon, lat)
-    src = grid.geometry.centroid.unary_union.centroid
-    grid.geometry = grid.geometry.translate(xoff=target.x - src.x,
-                                            yoff=target.y - src.y)
+    half = side * cell_m / 2.0
+    cells, temps = [], []
+    for iy in range(side):
+        for ix in range(side):
+            x0 = target.x - half + ix * cell_m
+            y0 = target.y - half + iy * cell_m
+            cells.append(box(x0, y0, x0 + cell_m, y0 + cell_m))
+            # Radial "urban heat island" falloff from the district core + noise
+            cx = x0 + cell_m / 2 - target.x
+            cy = y0 + cell_m / 2 - target.y
+            r = (cx * cx + cy * cy) ** 0.5 / half          # 0 center -> ~1 rim
+            spread = (tmax - tmin) * 0.55
+            temp = base + spread * (1.0 - r) + rng.normal(0.0, spread * 0.22)
+            temps.append(float(min(tmax, max(tmin, temp))))
+
+    grid = gpd.GeoDataFrame(
+        {"temperature_c": temps,
+         "cell_id": [f"mock_{iy}_{ix}" for iy in range(side) for ix in range(side)],
+         "area_m2": [cell_m * cell_m] * len(cells)},
+        geometry=cells, crs="EPSG:32612",
+    )
+    grid = _synthesize_env(grid)
+
+    pois = f2.load_osm_pois(Path(config.FIXTURE_DIR) / "sample_osm_pois.json")
+    pois_local = pois.copy()
+    if len(pois_local):
+        # Keep POIs near this district (they arrive in WGS84) so the
+        # vulnerability overlay shows markers around the selected area.
+        from shapely.geometry import Point
+        pts = gpd.GeoSeries(gpd.points_from_xy(pois_local.geometry.x.values,
+                                               pois_local.geometry.y.values),
+                            crs="EPSG:4326")
+        aoi_deg = 0.008  # ~700-800 m around the district center
+        keep = pts.within(
+            box(lon - aoi_deg, lat - aoi_deg, lon + aoi_deg, lat + aoi_deg)
+        ).values
+        if not keep.any():
+            # Nudge a few POIs around the district center (degree offsets ≈
+            # 150-450 m) so the overlay isn't empty for off-Phoenix centers.
+            sample = pois_local.head(min(6, len(pois_local))).copy()
+            dlat = 0.0018
+            dlon = 0.0021
+            offsets = ((-dlon, dlat), (dlon, -dlat), (0, 2 * dlat),
+                       (-2 * dlon, -dlat), (dlon, dlat), (-dlon, -2 * dlat))
+            sample.geometry = [
+                Point(lon + dx, lat + dy)
+                for dx, dy in offsets[: len(sample)]
+            ]
+            pois_local = sample
+        else:
+            pois_local = pois_local[list(keep)]
+    census = f2.fetch_census_data()
+    grid = f2.compute_vulnerability_score(grid, pois_local, census)
+    grid = f2.compute_priority_score(grid)
+    grid.attrs["pois"] = pois_local
     grid.attrs["city"] = name
     grid.attrs["center"] = (float(lat), float(lon))
     return grid
+
+
+def _mock_grid_centered(lat, lon, name):
+    """District-sized deterministic offline grid for the searched/preset center.
+
+    Keeps every contract field so the whole pipeline (vulnerability, priority,
+    matrix, roadmap) runs identically to the live path. This is a visual and
+    functional demonstration in mock mode, not real 2-metre data for the target
+    city -- the UI labels it as such.
+    """
+    return _synthetic_grid(lat, lon, name, seed_key=name)
 
 
 def _small_ring(lon: float, lat: float, deg: float = 0.03) -> list:
@@ -564,7 +658,7 @@ PRESETS = [
 # Custom areas are capped at ~2 sq mi (≈5.2 km²) so a fresh FortyGuard build
 # stays inside a reasonable demo wait (the API's hard cap is ~130 km² / 50 mi²).
 CUSTOM_AREA_LIMIT_KM2 = 5.2
-CUSTOM_AREA_WAIT_LABEL = "takes 1-3 minutes"
+CUSTOM_AREA_WAIT_LABEL = "usually under a minute"
 
 
 def preset_by_key(key: str) -> dict | None:

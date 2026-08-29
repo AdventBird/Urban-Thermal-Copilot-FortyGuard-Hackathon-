@@ -114,7 +114,8 @@ _VIRIDIS = ["#440154", "#482878", "#3f4889", "#33698f", "#2f8a8a",
 
 
 def render_explorer_map(grid, center=None, show_vulnerability=False, pois=None,
-                        show_landmarks=True, center_name=None):
+                        show_landmarks=True, center_name=None,
+                        highlight_severity=None):
     """Interactive, full-bleed map with temperature, place markers & vulnerability.
 
     Layers:
@@ -126,6 +127,12 @@ def render_explorer_map(grid, center=None, show_vulnerability=False, pois=None,
       * "🎓 Facilities & Transit (POIs)" (when toggled on) — schools, hospitals, transit.
       * Locate Me control — Click to instantly view your GPS location on the map.
       * Geocoder search — Search any address or landmark inside the map.
+
+    ``highlight_severity`` (optional): one of "terrible"/"bad"/"fair"/"good".
+    When set, matching cells are emphasized and all others dimmed, so the
+    severity-count legend acts as a navigation filter, not just a label.
+    The map auto-fits its bounds to the grid extent, so the heat layer always
+    frames the whole selected area regardless of preset/custom size.
     """
     import folium
     from folium import plugins as fplugins
@@ -184,12 +191,20 @@ def render_explorer_map(grid, center=None, show_vulnerability=False, pois=None,
         )
 
         def _temp_style(f):
-            return {
+            style = {
                 "fillColor": cmap(float(f["properties"]["temperature_c"])),
                 "color": "#475569",
                 "weight": 1.2,
                 "fillOpacity": 0.74,
             }
+            if highlight_severity:
+                level, _ = classify_priority(
+                    float(f["properties"].get("priority_score", 0.0)))
+                if level == highlight_severity:
+                    style.update({"weight": 3.2, "color": "#f8fafc", "fillOpacity": 0.9})
+                else:
+                    style.update({"fillOpacity": 0.08, "weight": 0.4, "color": "#334155"})
+            return style
 
         folium.GeoJson(
             geod,
@@ -316,4 +331,14 @@ def render_explorer_map(grid, center=None, show_vulnerability=False, pois=None,
             poi_group.add_to(m)
 
     folium.LayerControl(collapsed=False, position="topright").add_to(m)
+
+    # Auto-fit the viewport to the grid extent so the heat layer always fills
+    # the visible map (a fixed zoom_start cropped small presets and oversized
+    # custom areas alike).
+    minx, miny, maxx, maxy = geod.total_bounds
+    if all(isinstance(v, (int, float)) for v in (minx, miny, maxx, maxy)):
+        m.fit_bounds(
+            [[float(miny), float(minx)], [float(maxy), float(maxx)]],
+            padding=(18, 18),
+        )
     return m
