@@ -88,7 +88,7 @@ cp .env.example .env
 Then paste your keys into `.env`:
 - `FORTYGUARD_API_KEY` — live 2-metre heat data.
 - `GEMINI_API_KEY` — AI-generated executive memo (optional; a template memo is
-  used otherwise). The memo uses **Gemini 2.5 Flash Lite** by default; override
+  used otherwise). The memo uses **Gemini 3.5 Flash Lite** by default; override
   with `GEMINI_MODEL=<model-name>` (see `.env.example`).
 
 > **No keys? The app still runs fully.** Without a FortyGuard key it runs in
