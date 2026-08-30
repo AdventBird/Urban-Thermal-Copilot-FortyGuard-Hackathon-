@@ -14,8 +14,8 @@ import os
 log = logging.getLogger(__name__)
 
 # Default Gemini model (fast & capable for a planning narrative). Override with
-# the GEMINI_MODEL env var if you prefer e.g. "gemini-1.5-pro".
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+# the GEMINI_MODEL env var if you prefer a different model.
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
 
 
 def _mock_prefixes() -> tuple:
